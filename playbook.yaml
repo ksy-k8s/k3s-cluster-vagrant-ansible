@@ -1,0 +1,40 @@
+---
+- name: Manage Server Node
+  hosts: server
+  gather_facts: no
+  tasks:
+    - name: Install K3s in server node
+      shell: >
+        NODE_IP=$(ip a show enp0s8 | head -3 | tail -1 | xargs | cut -d " " -f 2 | cut -d / -f 1)
+        &&export K3S_KUBECONFIG_MODE="644"
+        && curl -sfL https://get.k3s.io
+        | INSTALL_K3S_VERSION="v1.22.7+k3s1" INSTALL_K3S_EXEC="--node-ip=$NODE_IP --flannel-iface=enp0s8" sh -s -
+    - name: Fetch server token file from server node
+      become: true
+      fetch:
+        src: /var/lib/rancher/k3s/server/node-token
+        dest: /home/vagrant/
+        flat: true
+    - name: Taint server node
+      shell: 'kubectl taint node k3s-s node-role.kubernetes.io=master:NoSchedule'
+
+- name: Manage Agent Nodes
+  hosts: agents
+  gather_facts: no
+  tasks:
+    - name: Copy server token file to agent nodes
+      copy:
+        src: /home/vagrant/node-token
+        dest: /home/vagrant/node-token
+    - name: Install K3s in agent nodes
+      shell: >
+        NODE_IP=$(ip a show enp0s8 | head -3 | tail -1 | xargs | cut -d " " -f 2 | cut -d / -f 1)
+        && export K3S_URL="https://192.168.2.50:6443"
+        && export K3S_TOKEN=$(cat /home/vagrant/node-token)
+        && export K3S_KUBECONFIG_MODE="644"
+        && curl -sfL https://get.k3s.io
+        | INSTALL_K3S_VERSION="v1.22.7+k3s1" INSTALL_K3S_EXEC="--node-ip=$NODE_IP --flannel-iface=enp0s8" sh -s -
+    - name: Delete token file from agent nodes
+      file:
+        path: /home/vagrant/node-token
+        state: absent
