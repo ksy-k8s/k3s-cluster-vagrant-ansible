@@ -23,7 +23,7 @@ Vagrant.configure("2") do |config|
         vb.memory = "2048"
         vb.customize ["modifyvm", :id, "--groups", "/K3s Cluster"]
       end
-      agent.vm.provision "shell", inline: $common_script
+      agent.vm.provision "shell", inline: $common_setup
     end
   end
 
@@ -40,32 +40,35 @@ Vagrant.configure("2") do |config|
       vb.memory = "4096"
       vb.customize ["modifyvm", :id, "--groups", "/K3s Cluster"]
     end
-    server.vm.provision "shell", inline: $common_script
-    server.vm.provision "shell", inline: $server_script, privileged: false
+    server.vm.provision "shell", inline: $common_setup
+    server.vm.provision "shell", inline: $server_setup, privileged: false
     server.vm.provision "file", source: "./inventory.txt", destination: "~/inventory.txt"
     server.vm.provision "file", source: "./playbook.yaml", destination: "~/playbook.yaml"
-    server.vm.provision "shell", inline: $ansible_script, privileged: false, args: N_AGENT # pass N_AGENT as first argument
+    server.vm.provision "shell", inline: $install_k3s, privileged: false, args: N_AGENT # pass N_AGENT as first argument
   end
 
 end
 
-$common_script = <<-SCRIPT
+$common_setup = <<-SCRIPT
   apt update #&& apt upgrade -y && apt autoremove -y
   sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
   systemctl restart ssh
 SCRIPT
 
-$server_script = <<-SCRIPT
-  curl -s https://raw.githubusercontent.com/ehsqjfwk99999/config-files/main/.bashrc >>/home/vagrant/.bashrc
-  curl -s https://raw.githubusercontent.com/ehsqjfwk99999/config-files/main/.vimrc >>/home/vagrant/.vimrc
+$server_setup = <<-SCRIPT
+  sudo sed -i 's/# set bell-style none/set bell-style none/' /etc/inputrc
+  curl -s https://raw.githubusercontent.com/ehsqjfwk99999/config-files/main/.bashrc >>~/.bashrc
+  curl -s https://raw.githubusercontent.com/ehsqjfwk99999/config-files/main/.vimrc >>~/.vimrc
 SCRIPT
 
-$ansible_script = <<-SCRIPT
-  sudo apt install -y ansible sshpass
+$install_k3s = <<-SCRIPT
+  sudo apt install -y sshpass ansible=2.10.7+merged+base+2.10.8+dfsg-1
 
-  ssh-keygen -f /home/vagrant/.ssh/id_rsa -N ''
+  ssh-keygen -f ~/.ssh/id_rsa -N ''
   sudo sed -i 's/#   StrictHostKeyChecking ask/StrictHostKeyChecking no/g' /etc/ssh/ssh_config
   for ((i = 0; i <= $1; i++)); do sshpass -p vagrant ssh-copy-id "vagrant@192.168.2.5${i}"; done
 
   ansible-playbook playbook.yaml -i inventory.txt
+
+  cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
 SCRIPT
