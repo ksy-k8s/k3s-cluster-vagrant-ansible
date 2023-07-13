@@ -2,8 +2,9 @@
 # vi: set ft=ruby :
 
 N_AGENT = 3
-server_ip = "192.168.2.50"
-agent_ip = Array.new(N_AGENT) { |i| "192.168.2.5#{i+1}"}
+# if ip is changed, change the ip in install_k3s, hosts.txt, playbook.yaml
+server_ip = "192.168.101.50"
+agent_ip = Array.new(N_AGENT) { |i| "192.168.101.5#{i+1}"}
 
 Vagrant.configure("2") do |config|
   
@@ -42,7 +43,7 @@ Vagrant.configure("2") do |config|
     end
     server.vm.provision "shell", inline: $common_setup
     server.vm.provision "shell", inline: $server_setup, privileged: false
-    server.vm.provision "file", source: "./inventory.txt", destination: "~/inventory.txt"
+    server.vm.provision "file", source: "./hosts.txt", destination: "~/hosts.txt"
     server.vm.provision "file", source: "./playbook.yaml", destination: "~/playbook.yaml"
     server.vm.provision "shell", inline: $install_k3s, privileged: false, args: N_AGENT # pass N_AGENT as first argument
   end
@@ -62,13 +63,18 @@ $server_setup = <<-SCRIPT
 SCRIPT
 
 $install_k3s = <<-SCRIPT
-  sudo apt install -y sshpass ansible=2.10.7+merged+base+2.10.8+dfsg-1
+  sudo apt install -y sshpass
+  sudo apt install -y ansible=2.10.7+merged+base+2.10.8+dfsg-1 # fixed
 
   ssh-keygen -f ~/.ssh/id_rsa -N ''
   sudo sed -i 's/#   StrictHostKeyChecking ask/StrictHostKeyChecking no/g' /etc/ssh/ssh_config
-  for ((i = 0; i <= $1; i++)); do sshpass -p vagrant ssh-copy-id "vagrant@192.168.2.5${i}"; done
+  for ((i = 0; i <= $1; i++)); do sshpass -p vagrant ssh-copy-id "vagrant@192.168.101.5${i}"; done
 
-  ansible-playbook playbook.yaml -i inventory.txt
+  ansible-playbook playbook.yaml -i hosts.txt
 
   cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+
+  echo 'source <(kubectl completion bash)' >>~/.bashrc
+  echo 'alias kc=kubectl' >>~/.bashrc
+  echo 'complete -o default -F __start_kubectl kc' >>~/.bashrc
 SCRIPT
