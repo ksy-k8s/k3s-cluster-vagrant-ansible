@@ -73,8 +73,4 @@ $install_k3s = <<-SCRIPT
   ansible-playbook playbook.yaml -i hosts.txt
 
   cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
-
-  echo 'source <(kubectl completion bash)' >>~/.bashrc
-  echo 'alias kc=kubectl' >>~/.bashrc
-  echo 'complete -o default -F __start_kubectl kc' >>~/.bashrc
 SCRIPT
